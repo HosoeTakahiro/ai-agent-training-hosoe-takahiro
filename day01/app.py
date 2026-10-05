@@ -6,13 +6,20 @@ import logging
 import sys
 from typing import List
 
+class Day01ArgumentParser(argparse.ArgumentParser):
+    def error(self, message: str) -> None:
+        print("入力内容に不備があります。", file=sys.stderr)
+        print(f"詳細: {message}", file=sys.stderr)
+        print("使い方の例: day01 --name Taro --repeat 2 --format text", file=sys.stderr)
+        self.exit(2)
 
 def build_parser() -> argparse.ArgumentParser:
     """Day01のCLI引数を定義します。
 
     原則として受講者はこの関数を編集せず、要件変更がある場合のみ調整します。
     """
-    p = argparse.ArgumentParser(prog="day01")
+    p =Day01ArgumentParser(prog="day01") 
+    """argparse.ArgumentParser(prog="day01")"""
     p.add_argument("--name", required=True)
     p.add_argument("--repeat", type=int, default=1)
     p.add_argument("--format", choices=["text", "json"], default="text")
@@ -22,18 +29,21 @@ def build_parser() -> argparse.ArgumentParser:
 def _validate_args(args: argparse.Namespace) -> None:
     """引数の簡易バリデーションを行います（入力不備は exit code=2 で終了）。"""
     if not args.name:
-        raise ValueError("--name is required")
+        raise ValueError("入力エラー: --name は必須です")
+    
     if not (1 <= args.repeat <= 10):
-        raise ValueError("--repeat must be between 1 and 10")
-
+        raise ValueError("入力エラー: --repeat は 1〜10 の範囲で指定してください")
+    
+    """if args.format not in ("text", "json"):
+        raise ValueError("入力エラー: --format は text か json を指定してください")"""
 
 def run(name: str, repeat: int, fmt: str) -> str:
     """課題ロジック本体です（Day01は完成形の見本として実装済み）。"""
+
     outputs: List[str] = [f"Hello, {name}" for _ in range(repeat)]
     if fmt == "json":
         return json.dumps({"name": name, "repeat": repeat, "outputs": outputs}, ensure_ascii=False)
     return "\n".join(outputs)
-
 
 def main(argv: List[str] | None = None) -> int:
     """CLIのエントリポイントです。
@@ -61,7 +71,6 @@ def main(argv: List[str] | None = None) -> int:
         logging.error("%s", e)
         print(str(e), file=sys.stderr)
         return 1
-
 
 if __name__ == "__main__":
     raise SystemExit(main())
