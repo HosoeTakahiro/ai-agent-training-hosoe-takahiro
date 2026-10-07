@@ -150,6 +150,37 @@ aws sts get-caller-identity
 aws bedrock list-foundation-models --region ap-northeast-1 --query "modelSummaries[].modelId" --output table
 ```
 
+**`aws sts get-caller-identity` がエラーになる場合**
+
+まず、使用するプロファイルを明示して設定状況を確認する：
+
+```bash
+aws configure list --profile training
+aws sts get-caller-identity --profile training
+```
+
+Windows（PowerShell）の場合も同じコマンドを実行できる。`aws configure list` は認証情報の値をマスクして表示する。
+
+| エラーの例 | 確認・対処 |
+|---|---|
+| `Unable to locate credentials` | `aws configure list --profile training` でプロファイルが認識されているか確認する。`aws configure --profile training` で設定し直し、`$env:AWS_PROFILE = "training"`（PowerShell）または `export AWS_PROFILE=training`（bash）を設定する。 |
+| `The config profile (training) could not be found` | `training` プロファイルを作成する。アクセスキー方式なら `aws configure --profile training`、SSO方式なら `aws configure sso --profile training` を実行する。 |
+| `InvalidClientTokenId`、`SignatureDoesNotMatch` | Access Key ID / Secret Access Key の入力誤り、無効化、または別プロファイルの使用を確認する。発行元に有効な認証情報を確認し、必要なら `aws configure --profile training` で更新する。認証情報をチャットやログに貼らない。 |
+| `ExpiredToken`、SSOのログイン期限切れ | SSO方式の場合は `aws sso login --profile training` を実行してから、再度 `aws sts get-caller-identity --profile training` を実行する。一時認証情報の場合は、有効期限内の認証情報に更新する。 |
+| `AccessDenied` | 利用中のアカウントやロールが正しいか、組織のポリシーや明示的な拒否がないかを管理者に確認する。`GetCallerIdentity` は通常、追加の許可を必要としないため、単に `sts:GetCallerIdentity` をIAMユーザーへ追加するだけでは解決しない場合がある。 |
+| タイムアウト、接続・名前解決エラー | ネットワーク、VPN、プロキシ、ファイアウォールを確認する。別のネットワークでも再実行し、AWS CLIのリージョンや接続先設定が組織の指定と合っているか確認する。 |
+
+環境変数に別の認証情報が設定されていると、プロファイルより優先される場合がある。PowerShellでは `$env:AWS_ACCESS_KEY_ID`、`$env:AWS_SECRET_ACCESS_KEY`、`$env:AWS_SESSION_TOKEN` の設定有無を確認し、意図しない値ならそのターミナルで削除してから再試行する：
+
+```powershell
+Remove-Item Env:AWS_ACCESS_KEY_ID -ErrorAction SilentlyContinue
+Remove-Item Env:AWS_SECRET_ACCESS_KEY -ErrorAction SilentlyContinue
+Remove-Item Env:AWS_SESSION_TOKEN -ErrorAction SilentlyContinue
+aws sts get-caller-identity --profile training
+```
+
+bashでは、`unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN` を実行してから再試行する。エラーが続く場合は、認証情報そのものを共有せず、エラー文と `aws configure list --profile training` のマスク済み出力を管理者へ提示する。
+
 > 注意：アクセスキーは研修終了後に無効化すること
 
 **B) IAM Identity Center（SSO）**
