@@ -133,14 +133,17 @@ python -m day02.app --prompt "短い俳句を作ってください" --temperatur
 
 ## Bedrock確認
 
-- モデル：
-- リージョン：
-- 主要パラメータ：
+- モデル：apac.anthropic.claude-3-5-sonnet-20241022-v2:0
+- リージョン：ap-northeast-1
+- 主要パラメータ：`--temperature`,`--max-tokens`,`--timeout-sec`
 
 ## リサーチメモ（任意）
 
 調べたURLや、理解した要点をメモしてください。
 
 - Bedrockのモデル呼び出し方法（boto3等）
+  　Pythonで「import boto3」を記述することで呼び出せる。
 - 利用する認証方式（研修の指示に従う）
+　　AWS IAMユーザーのアクセスキー。
 - タイムアウト/リトライの考え方
+　　timeout_secで指定した時間内にリトライする。
