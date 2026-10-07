@@ -57,6 +57,44 @@ def invoke_bedrock(
     - 認証/権限/ネットワーク/タイムアウトなどは例外として投げてOK
      （main側で終了コード=1にしてstderrへ出ます）
     """
+    import json
+
+    import boto3
+    from botocore.config import Config
+    
+    client = boto3.client(
+        "bedrock-runtime",
+        region_name=region,
+        config=Config(
+            connect_timeout=timeout_sec,
+            read_timeout=timeout_sec,
+        ),
+    )
+
+    response = client.invoke_model(
+        modelId=model_id,
+        contentType="application/json",
+        accept="application/json",
+        body=json.dumps({
+            "anthropic_version": "bedrock-2023-05-31",
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": prompt,
+                }
+            ],
+        }),
+    )
+
+    result = json.loads(response["body"].read())
+    return "".join(
+        block["text"]
+        for block in result["content"]
+        if block.get("type") == "text"
+    )
+
     # TODO(TRAINEE): Implement Bedrock invocation and return the assistant text only.
     raise NotImplementedError("Implement Bedrock invocation")
 
