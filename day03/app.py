@@ -4,8 +4,10 @@ import argparse
 import json
 import logging
 import sys
-from typing import Any, Dict, List
 
+import boto3
+
+from typing import Any, Dict, List
 
 def build_parser() -> argparse.ArgumentParser:
     """Day03のCLI引数を定義します（要件文とリトライ回数）。"""
@@ -14,7 +16,6 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--max-retry", type=int, default=1)
     return p
 
-
 def _validate_args(args: argparse.Namespace) -> None:
     """引数の簡易バリデーションを行います（入力不備は exit code=2）。"""
     if not args.requirements:
@@ -22,6 +23,28 @@ def _validate_args(args: argparse.Namespace) -> None:
     if not (0 <= args.max_retry <= 3):
         raise ValueError("--max-retry must be between 0 and 3")
 
+def call_llm(prompt: str) -> str:
+    session = boto3.Session(profile_name="default")
+    client = session.client("bedrock-runtime", region_name="ap-northeast-1")
+
+    body = {
+        "messages": [
+            {"role": "user", "content": prompt}
+        ],
+        "max_tokens": 1024,
+        "temperature": 0
+    }
+
+    response = client.invoke_model(
+        modelId="nvidia.nemotron-nano-12b-v2",  # ← ここは使うモデルに合わせて
+        body=json.dumps(body),
+        accept="application/json",
+        contentType="application/json",
+    )
+
+    payload = json.loads(response["body"].read())
+
+    return payload["choices"][0]["message"]["content"]
 
 def generate_json(requirements: str) -> str:
     """要件文字列から、JSON文字列（本文のみ）を生成して返します。
@@ -38,8 +61,45 @@ def generate_json(requirements: str) -> str:
     - 余計な前置き/後置きの文章を混ぜない
     - 壊れやすいので、プロンプトは短く・形式を固定する
     """
-    # TODO(TRAINEE): Generate a JSON string that passes validate_json().
-    raise NotImplementedError("Implement JSON generation")
+
+    """
+    LLM を使って JSON を生成する。
+    壊れた JSON が返る可能性があるので、main() 側でリトライする。
+    """
+    prompt = (
+        "You must output ONLY valid JSON. No explanation, no commentary, no code block.\n"
+        "Output format:\n"
+        "{\n"
+        "  \"title\": \"依頼の要約タイトル\",\n"
+        "  \"tasks\": [\n"
+        "    {\n"
+        "      \"id\": 1,\n"
+        "      \"description\": \"作業内容\",\n"
+        "      \"acceptance_criteria\": \"完了条件\"\n"
+        "    }\n"
+        "  ],\n"
+        "  \"risks\": [\"想定リスク\"]\n"
+        "}\n"
+        "Rules:\n"
+        "- Output JSON only.\n"
+        "- Do not include any text before or after the JSON.\n"
+        "- All keys must exist: title, tasks, risks.\n"
+        "- tasks must be a list of objects with id, description, acceptance_criteria.\n"
+        "- The JSON must be parseable by json.loads().\n"
+        f"Requirements: {requirements}"
+    )
+
+    response = call_llm(prompt)
+
+    if response is None:
+        raise ValueError("LLM returned None")
+
+    if isinstance(response, str) and response.strip() == "":
+        raise ValueError("LLM returned empty string")
+
+    data = json.loads(response)
+
+    return json.dumps(data, ensure_ascii=False, indent=2)
 
 
 def validate_json(text: str) -> Dict[str, Any]:
@@ -51,7 +111,6 @@ def validate_json(text: str) -> Dict[str, Any]:
     if not isinstance(obj.get("tasks"), list):
         raise ValueError("tasks must be a list")
     return obj
-
 
 def main(argv: List[str] | None = None) -> int:
     """CLIのエントリポイントです。
@@ -73,6 +132,8 @@ def main(argv: List[str] | None = None) -> int:
     for _ in range(args.max_retry + 1):
         try:
             text = generate_json(args.requirements)
+            # if not text or text.strip() == "":
+            #     raise ValueError("LLM returned empty output")
             validate_json(text)
             print(text)
             return 0
